@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Production builds
+frontend/build/
+frontend/dist/
+
+# Environment variables
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+backend/venv/
+venv/
+.venv/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project specific
+backend/uploads/
+backend/chroma_db/
+*.pkl
+*.model
+
+# API keys
+secrets.json
+credentials.json 
