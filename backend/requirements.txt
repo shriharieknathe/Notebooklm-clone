@@ -7,7 +7,7 @@ chromadb
 pypdf2
 pypdf
 python-dotenv
-pydantic==1.10.13
+pydantic>=2.0.0
 sentence-transformers
 faiss-cpu
 numpy
