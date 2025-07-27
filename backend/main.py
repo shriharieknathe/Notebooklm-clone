@@ -13,6 +13,7 @@ from models import (
 )
 from pdf_processor import PDFProcessor
 from vector_store import VectorStore
+from vector_search_service import VectorSearchService
 from llm_service import LLMService
 
 # Initialize FastAPI app
@@ -34,6 +35,7 @@ app.add_middleware(
 # Global instances
 pdf_processor = None
 vector_store = None
+vector_search_service = None
 llm_service = None
 
 def get_pdf_processor():
@@ -47,6 +49,13 @@ def get_vector_store():
     if vector_store is None:
         vector_store = VectorStore()
     return vector_store
+
+def get_vector_search_service():
+    global vector_search_service
+    if vector_search_service is None:
+        vector_store = get_vector_store()
+        vector_search_service = VectorSearchService(vector_store)
+    return vector_search_service
 
 def get_llm_service():
     global llm_service
@@ -62,7 +71,8 @@ async def startup_event():
         # Initialize services
         get_pdf_processor()
         get_vector_store()
-        get_llm_service()
+        get_vector_search_service()
+        # Note: LLM service is not initialized by default to save memory
         print("All services initialized successfully")
     except Exception as e:
         print(f"Error during startup: {e}")
@@ -145,9 +155,29 @@ async def upload_pdf(
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
+    vector_search_service: VectorSearchService = Depends(get_vector_search_service)
+):
+    """Search and retrieve relevant content from the uploaded PDF"""
+    try:
+        # Use vector search by default (memory efficient)
+        response = vector_search_service.search_and_summarize(request.question)
+        
+        return ChatResponse(
+            answer=response["answer"],
+            citations=response["citations"],
+            question=request.question,
+            session_id=request.session_id
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting search response: {str(e)}")
+
+@app.post("/chat/llm", response_model=ChatResponse)
+async def chat_with_llm(
+    request: ChatRequest,
     llm_service: LLMService = Depends(get_llm_service)
 ):
-    """Chat with the AI about the uploaded PDF"""
+    """Chat with LLM about the uploaded PDF (uses more memory)"""
     try:
         # Get response from LLM service
         response = llm_service.get_response(request.question)
@@ -160,24 +190,23 @@ async def chat(
         )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting chat response: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting LLM response: {str(e)}")
 
 @app.post("/clear-memory", response_model=ClearMemoryResponse)
 async def clear_memory(
     session_id: str = None,
-    llm_service: LLMService = Depends(get_llm_service)
+    vector_search_service: VectorSearchService = Depends(get_vector_search_service)
 ):
-    """Clear conversation memory"""
+    """Clear conversation memory (not needed for vector search)"""
     try:
-        llm_service.clear_memory()
-        
+        # Vector search doesn't maintain memory, so just return success
         return ClearMemoryResponse(
-            message="Conversation memory cleared successfully",
+            message="Vector search service doesn't maintain conversation memory",
             session_id=session_id
         )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error clearing memory: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @app.get("/stats")
 async def get_stats(vector_store: VectorStore = Depends(get_vector_store)):
