@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './ResizableSplitPane.css';
 
 const ResizableSplitPane = ({ 
@@ -32,7 +32,7 @@ const ResizableSplitPane = ({
     setIsDragging(true);
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
     if (!isDragging) return;
     
     const containerRect = containerRef.current.getBoundingClientRect();
@@ -45,11 +45,11 @@ const ResizableSplitPane = ({
     if (newLeftWidthPixels >= minPixels && newLeftWidthPixels <= maxPixels) {
       setLeftWidth(getPercentageValue(newLeftWidthPixels));
     }
-  };
+  }, [isDragging, minLeftWidth, maxLeftWidth]);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     setIsDragging(false);
-  };
+  }, []);
 
   useEffect(() => {
     if (isDragging) {

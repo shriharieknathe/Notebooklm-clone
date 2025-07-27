@@ -8,7 +8,7 @@ import './PDFChat.css';
 const PDFChat = ({ pdfFile, onRemoveDocument }) => {
   const [messages, setMessages] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages] = useState(1);
+
   const [isLoading, setIsLoading] = useState(false);
 
   // Add initial welcome message
