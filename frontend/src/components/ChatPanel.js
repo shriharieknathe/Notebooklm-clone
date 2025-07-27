@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiX, FiSend, FiMessageCircle } from 'react-icons/fi';
+import { FiX, FiSend } from 'react-icons/fi';
 import Message from './Message';
 import './ChatPanel.css';
 

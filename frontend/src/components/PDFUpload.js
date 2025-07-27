@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FiUpload, FiX } from 'react-icons/fi';
+import { FiUpload } from 'react-icons/fi';
 import './PDFUpload.css';
 
 const PDFUpload = ({ onFileUpload, isUploading, uploadProgress }) => {
@@ -15,7 +15,7 @@ const PDFUpload = ({ onFileUpload, isUploading, uploadProgress }) => {
     }
   }, [onFileUpload]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps } = useDropzone({
     onDrop,
     accept: {
       'application/pdf': ['.pdf']

@@ -61,7 +61,7 @@ const ResizableSplitPane = ({
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [isDragging]);
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   return (
     <div 
