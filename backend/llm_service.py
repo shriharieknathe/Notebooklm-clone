@@ -14,7 +14,7 @@ class LLMService:
     def _initialize_huggingface_model(self):
         """Initialize HuggingFace model locally with memory optimization"""
         try:
-            # Load tokenizer and model with memory optimization
+            # Load tokenizer and model with maximum memory optimization
             tokenizer = AutoTokenizer.from_pretrained(
                 Config.MODEL_NAME, 
                 token=Config.HUGGINGFACE_API_TOKEN,
@@ -24,7 +24,8 @@ class LLMService:
                 Config.MODEL_NAME,
                 token=Config.HUGGINGFACE_API_TOKEN,
                 low_cpu_mem_usage=True,
-                torch_dtype="auto"
+                torch_dtype="auto",
+                device_map="cpu"
             )
             
             # Create pipeline for text generation with memory optimization
@@ -32,16 +33,16 @@ class LLMService:
                 "text2text-generation",
                 model=model,
                 tokenizer=tokenizer,
-                max_length=Config.MAX_LENGTH,
+                max_length=512,
                 temperature=Config.TEMPERATURE,
                 do_sample=True,
-                device_map="auto"  # Automatically handle device placement
+                device_map="cpu"  # Force CPU usage
             )
             
             # Create LangChain wrapper
             llm = HuggingFacePipeline(
                 pipeline=text_generation_pipeline,
-                model_kwargs={"temperature": Config.TEMPERATURE, "max_length": Config.MAX_LENGTH}
+                model_kwargs={"temperature": Config.TEMPERATURE, "max_length": 512}
             )
             
             return llm
@@ -134,15 +135,23 @@ Answer:"""
             # Combine context
             context = "\n".join([doc.page_content for doc in relevant_docs])
             
+            # Limit context length to prevent token overflow
+            max_context_length = 1000  # characters
+            if len(context) > max_context_length:
+                context = context[:max_context_length] + "..."
+            
             # Create a better prompt for T5 model
             prompt = f"""Question: {question}
 
 Context: {context}
 
-Provide a clear and concise answer based on the context above. Keep your response focused and avoid repetition:"""
+Answer:"""
             
             # Get response from LLM
             answer = self.llm(prompt)
+            
+            # Debug: Print the raw response
+            print(f"Raw LLM response: '{answer}'")
             
             # Clean up the response - remove repetitions and take only unique content
             answer = answer.strip()
@@ -170,12 +179,12 @@ Provide a clear and concise answer based on the context above. Keep your respons
             
             # If answer is too short or repetitive, try a different approach
             if len(answer) < 50 or self._is_repetitive(answer):
-                # Try a more specific prompt
-                prompt2 = f"""Based on this information: {context}
+                # Try a more specific prompt for T5
+                prompt2 = f"""Question: {question}
 
-Answer this question: {question}
+Context: {context}
 
-Provide a concise answer in 2-3 sentences:"""
+Answer:"""
                 answer = self.llm(prompt2).strip()
                 # Apply same deduplication
                 sentences = answer.split('.')
@@ -269,9 +278,15 @@ Provide a concise answer in 2-3 sentences:"""
     def _get_fallback_response(self, question: str, context: str) -> str:
         """Fallback response when main LLM fails"""
         try:
-            # Try a very simple approach
-            simple_prompt = f"Answer this question: {question}"
-            return self.llm(simple_prompt).strip()
+            # Try a very simple approach for T5
+            simple_prompt = f"Question: {question}\nAnswer:"
+            response = self.llm(simple_prompt).strip()
+            if not response or len(response) < 10:
+                # If still empty, try with context
+                context_prompt = f"Question: {question}\nContext: {context}\nAnswer:"
+                response = self.llm(context_prompt).strip()
+            
+            return response if response else f"I found relevant information in the document about: {question}"
         except:
             # Final fallback
             return f"Based on the available information, I can see relevant content in the document. Please try rephrasing your question about: {question}"

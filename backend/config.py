@@ -8,7 +8,7 @@ load_dotenv()
 class Config:
     # HuggingFace Configuration
     HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN", HUGGINGFACE_TOKEN)
-    MODEL_NAME = "google/flan-t5-small"  # Smaller model for memory efficiency
+    MODEL_NAME = "google/flan-t5-small"  # Better for Q&A tasks (~300MB)
     
     # Vector Database Configuration
     CHROMA_PERSIST_DIRECTORY = os.getenv("CHROMA_PERSIST_DIRECTORY", "./chroma_db")
@@ -27,8 +27,8 @@ class Config:
     
     # LLM Configuration
     TEMPERATURE = 0.7
-    MAX_TOKENS = 512  # Good for T5 model
-    MAX_LENGTH = 512
+    MAX_TOKENS = 512
+    MAX_LENGTH = 1024  # Increased for better responses
     
     # Vector Database Configuration
     CHUNK_SIZE = 1000
