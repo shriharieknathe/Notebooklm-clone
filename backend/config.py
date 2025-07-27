@@ -8,7 +8,7 @@ load_dotenv()
 class Config:
     # HuggingFace Configuration
     HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN", HUGGINGFACE_TOKEN)
-    MODEL_NAME = "google/flan-t5-base"  # More reliable base model
+    MODEL_NAME = "google/flan-t5-small"  # Smaller model for memory efficiency
     
     # Vector Database Configuration
     CHROMA_PERSIST_DIRECTORY = os.getenv("CHROMA_PERSIST_DIRECTORY", "./chroma_db")

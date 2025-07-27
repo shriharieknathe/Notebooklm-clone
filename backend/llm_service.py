@@ -12,26 +12,30 @@ from vector_store import VectorStore
 
 class LLMService:
     def _initialize_huggingface_model(self):
-        """Initialize HuggingFace model locally with API token for downloads"""
+        """Initialize HuggingFace model locally with memory optimization"""
         try:
-            # Load tokenizer and model with API token for access
+            # Load tokenizer and model with memory optimization
             tokenizer = AutoTokenizer.from_pretrained(
                 Config.MODEL_NAME, 
-                token=Config.HUGGINGFACE_API_TOKEN
+                token=Config.HUGGINGFACE_API_TOKEN,
+                low_cpu_mem_usage=True
             )
             model = AutoModelForSeq2SeqLM.from_pretrained(
                 Config.MODEL_NAME,
-                token=Config.HUGGINGFACE_API_TOKEN
+                token=Config.HUGGINGFACE_API_TOKEN,
+                low_cpu_mem_usage=True,
+                torch_dtype="auto"
             )
             
-            # Create pipeline for text generation
+            # Create pipeline for text generation with memory optimization
             text_generation_pipeline = pipeline(
                 "text2text-generation",
                 model=model,
                 tokenizer=tokenizer,
                 max_length=Config.MAX_LENGTH,
                 temperature=Config.TEMPERATURE,
-                do_sample=True
+                do_sample=True,
+                device_map="auto"  # Automatically handle device placement
             )
             
             # Create LangChain wrapper
@@ -71,8 +75,8 @@ class LLMService:
     
     def _create_qa_chain(self):
         """Create conversational retrieval chain"""
-        # Custom prompt template for T5 model
-        template = """Answer the following question based on the provided context. If you don't know the answer, say "I don't know."
+        # Custom prompt template for T5 model - improved for better responses
+        template = """Based on the context below, answer the question concisely. If the context doesn't contain relevant information, say "I don't have enough information to answer this question."
 
 Context: {context}
 
@@ -135,7 +139,7 @@ Answer:"""
 
 Context: {context}
 
-Provide a concise answer in 2-3 sentences based on the context above. Do not repeat information:"""
+Provide a clear and concise answer based on the context above. Keep your response focused and avoid repetition:"""
             
             # Get response from LLM
             answer = self.llm(prompt)
@@ -159,13 +163,13 @@ Provide a concise answer in 2-3 sentences based on the context above. Do not rep
             
             # Reconstruct answer with only unique content
             if unique_sentences:
-                answer = '. '.join(unique_sentences[:5]) + '.'  # Limit to 5 sentences max
+                answer = '. '.join(unique_sentences[:3]) + '.'  # Limit to 3 sentences max
             else:
                 # Fallback if no unique sentences found
-                answer = answer[:500]  # Limit to 500 characters
+                answer = answer[:300]  # Limit to 300 characters
             
-            # If answer is too short, try a different approach
-            if len(answer) < 50:
+            # If answer is too short or repetitive, try a different approach
+            if len(answer) < 50 or self._is_repetitive(answer):
                 # Try a more specific prompt
                 prompt2 = f"""Based on this information: {context}
 
@@ -233,6 +237,34 @@ Provide a concise answer in 2-3 sentences:"""
             
         except Exception as e:
             return f"I apologize, but I encountered an error: {str(e)}"
+    
+    def _is_repetitive(self, text: str) -> bool:
+        """Check if text contains repetitive patterns"""
+        if not text:
+            return False
+        
+        # Check for repeated phrases
+        words = text.split()
+        if len(words) < 10:
+            return False
+        
+        # Check if the same word appears too many times
+        word_counts = {}
+        for word in words:
+            word_counts[word] = word_counts.get(word, 0) + 1
+        
+        # If any word appears more than 30% of the time, it's repetitive
+        max_count = max(word_counts.values())
+        if max_count > len(words) * 0.3:
+            return True
+        
+        # Check for repeated phrases (3+ words)
+        for i in range(len(words) - 2):
+            phrase = ' '.join(words[i:i+3])
+            if text.count(phrase) > 2:
+                return True
+        
+        return False
     
     def _get_fallback_response(self, question: str, context: str) -> str:
         """Fallback response when main LLM fails"""
