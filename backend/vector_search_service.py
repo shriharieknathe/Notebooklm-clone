@@ -1,4 +1,5 @@
 import os
+import re
 from typing import List, Dict, Any, Optional
 from langchain.schema import Document
 from vector_store import VectorStore
@@ -8,7 +9,7 @@ class VectorSearchService:
     def __init__(self, vector_store: VectorStore):
         self.vector_store = vector_store
     
-    def search_and_summarize(self, question: str, k: int = 3) -> Dict[str, Any]:
+    def search_and_summarize(self, question: str, k: int = 2) -> Dict[str, Any]:
         """
         Search vector database and return relevant content without using LLM
         """
@@ -28,8 +29,11 @@ class VectorSearchService:
             # Extract and format the most relevant content
             answer = self._format_relevant_content(relevant_docs, question)
             
-            # Process citations
-            citations = self._process_citations(relevant_docs)
+            # Debug: Print the raw answer to see what's being returned
+            print(f"DEBUG - Raw answer: {answer}")
+                
+            # Process citations (temporarily disabled to avoid page number issues)
+            citations = []  # self._process_citations(relevant_docs)
             
             return {
                 "answer": answer,
@@ -56,24 +60,33 @@ class VectorSearchService:
         if not documents:
             return "No relevant information found."
         
-        # Extract content from documents with deduplication
+        # Extract content from documents with better deduplication
         unique_contents = []
         seen_content = set()
         
         for doc in documents:
             content = doc.page_content.strip()
             if content and len(content) > 10:  # Only include meaningful content
-                # Create a simplified version for deduplication
-                simplified = ' '.join(content.split()[:20]).lower()  # First 20 words
-                if simplified not in seen_content:
-                    unique_contents.append(content)
-                    seen_content.add(simplified)
+                # Clean content first - remove page numbers and artifacts
+                cleaned_content = content
+                cleaned_content = re.sub(r'Page \d+', '', cleaned_content).strip()
+                cleaned_content = re.sub(r'Page \d+ Page \d+', '', cleaned_content).strip()
+                cleaned_content = cleaned_content.replace('\n', ' ').replace('  ', ' ')
+                
+                if cleaned_content and len(cleaned_content) > 10:
+                    # Create a simplified version for deduplication (more robust)
+                    words = cleaned_content.split()
+                    simplified = ' '.join(words[:15]).lower()  # First 15 words for better deduplication
+                    
+                    if simplified not in seen_content:
+                        unique_contents.append(cleaned_content)
+                        seen_content.add(simplified)
         
         if not unique_contents:
             return "No relevant information found."
         
-        # Take only the first 2 unique contents to avoid repetition
-        combined_content = "\n\n".join(unique_contents[:2])
+        # Take only the first unique content to avoid repetition
+        combined_content = unique_contents[0]  # Only use the first unique content
         
         # Create a structured response
         response_parts = []
@@ -98,17 +111,61 @@ class VectorSearchService:
         
         # Add the actual content with better formatting
         if combined_content:
-            # Clean up the content - remove excessive whitespace and line breaks
+            # Clean up the content - remove excessive whitespace, line breaks, and page artifacts
             cleaned_content = ' '.join(combined_content.split())
+            
+            # More aggressive page number removal
+            cleaned_content = re.sub(r'Page \d+', '', cleaned_content).strip()
+            cleaned_content = re.sub(r'Page \d+ Page \d+', '', cleaned_content).strip()
+            cleaned_content = re.sub(r'Page\d+', '', cleaned_content).strip()
+            cleaned_content = re.sub(r'\bPage\b', '', cleaned_content).strip()
+            
+            # Remove any remaining artifacts
+            cleaned_content = re.sub(r'\s+', ' ', cleaned_content).strip()
+            
             # Split into sentences for better readability
             sentences = cleaned_content.split('.')
-            # Take only meaningful sentences
-            meaningful_sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
-            # Limit to 5 sentences maximum
-            final_content = '. '.join(meaningful_sentences[:5]) + '.'
-            response_parts.append(final_content)
+            # Take only meaningful sentences (filter out page numbers and short sentences)
+            meaningful_sentences = []
+            for s in sentences:
+                s = s.strip()
+                # More aggressive filtering
+                if (len(s) > 20 and 
+                    not s.startswith('Page') and 
+                    not s.lower().startswith('page') and
+                    not s.endswith('Page') and
+                    not s.lower().endswith('page') and
+                    'Page' not in s):
+                    meaningful_sentences.append(s)
+            
+            # Limit to 3 sentences maximum to avoid repetition
+            if meaningful_sentences:
+                final_content = '. '.join(meaningful_sentences[:3]) + '.'
+                # Final cleanup to remove any remaining page references
+                final_content = re.sub(r'\bPage\b', '', final_content).strip()
+                final_content = re.sub(r'\s+', ' ', final_content).strip()
+                response_parts.append(final_content)
+            else:
+                # Fallback: use cleaned content directly
+                fallback_content = re.sub(r'\bPage\b', '', cleaned_content).strip()
+                fallback_content = re.sub(r'\s+', ' ', fallback_content).strip()
+                if fallback_content:
+                    response_parts.append(fallback_content[:500] + '...')
         
-        return "\n\n".join(response_parts)
+        # Final cleanup of the entire response
+        final_response = "\n\n".join(response_parts)
+        
+        # Aggressive page number removal
+        final_response = re.sub(r'\bPage\b', '', final_response).strip()
+        final_response = re.sub(r'Page \d+', '', final_response).strip()
+        final_response = re.sub(r'Page\d+', '', final_response).strip()
+        final_response = re.sub(r'\s+', ' ', final_response).strip()
+        
+        # Remove any trailing artifacts
+        final_response = re.sub(r'\s*Page\s*$', '', final_response).strip()
+        final_response = re.sub(r'\s*Page\s*Page\s*$', '', final_response).strip()
+        
+        return final_response
     
     def _process_citations(self, source_documents: List[Document]) -> List[Dict[str, Any]]:
         """Process source documents to create citations"""
@@ -276,7 +333,7 @@ class VectorSearchService:
         else:
             return content
     
-    def search_by_keyword(self, keyword: str, k: int = 3) -> Dict[str, Any]:
+    def search_by_keyword(self, keyword: str, k: int = 2) -> Dict[str, Any]:
         """
         Search for specific keywords in the document
         """
