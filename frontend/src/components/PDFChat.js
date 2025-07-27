@@ -79,7 +79,8 @@ const PDFChat = ({ pdfFile, onRemoveDocument }) => {
   };
 
   const handleTotalPages = (pages) => {
-    setTotalPages(pages);
+    // Total pages is now handled internally by PDFViewer
+    console.log('Total pages:', pages);
   };
 
   return (
