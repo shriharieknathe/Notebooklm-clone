@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
 langchain==0.1.0
 langchain-community==0.0.10
@@ -17,3 +17,4 @@ torch
 torchvision
 accelerate
 huggingface-hub
+gunicorn
